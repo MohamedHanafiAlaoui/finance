@@ -41,3 +41,27 @@ example
 # generated native folders
 /ios
 /android
+
+# Firebase and sensitive files
+# Local Firebase config
+FirebaseConfig.ts
+config/firebase.ts
+
+# Service account keys and environment
+*.firebase.json
+*.firebaserc
+serviceAccount*.json
+service-account-*.json
+
+# Google native config files
+google-services.json
+GoogleService-Info.plist
+
+# Local env and credentials
+.env
+.env.local
+.env.*.local
+
+# Firebase local emulator and cache
+.firebase/
+
