@@ -2,20 +2,23 @@ import { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
+import { AppButton } from "../../components/ui/AppButton";
+import { AppInput } from "../../components/ui/AppInput";
+import { useTheme } from "../../hooks/use-theme";
 
 export default function LoginScreen() {
   const { login, resetPassword } = useAuth();
+  const colors = useTheme();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +28,6 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setError("");
 
-    // Validation
     if (!email.trim()) {
       setError("Please enter your email.");
       return;
@@ -38,8 +40,6 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const profile = await login(email, password);
-
-      // Navigate based on onboarding status
       if (profile.onboardingCompleted) {
         router.replace("/tabs/home");
       } else {
@@ -73,74 +73,71 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.container}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
-
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <View style={[styles.logoWrap, { backgroundColor: colors.primaryLight }]}>
+              <Text style={styles.logoText}>💎</Text>
             </View>
-          ) : null}
+            <Text style={[styles.title, { color: colors.text }]}>Welcome Back</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Sign in to your account</Text>
 
-          <TextInput
-            placeholder="Email"
-            placeholderTextColor="#9CA3AF"
-            value={email}
-            onChangeText={(text) => {
-              setEmail(text);
-              setError("");
-            }}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={styles.input}
-          />
+            {error ? (
+              <View style={[styles.errorContainer, { backgroundColor: '#FEE2E2' }]}>
+                <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
+              </View>
+            ) : null}
 
-          <TextInput
-            placeholder="Password"
-            placeholderTextColor="#9CA3AF"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              setError("");
-            }}
-            secureTextEntry
-            style={styles.input}
-          />
+            <AppInput
+              placeholder="Email"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                setError("");
+              }}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
 
-          <Pressable onPress={handleForgotPassword}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </Pressable>
+            <AppInput
+              placeholder="Password"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                setError("");
+              }}
+              secureTextEntry
+            />
 
-          <Pressable
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
-          </Pressable>
-
-          <View style={styles.registerContainer}>
-            <Text style={styles.registerLabel}>Don't have an account? </Text>
-            <Pressable onPress={() => router.push("/auth/register")}>
-              <Text style={styles.registerLink}>Create Account</Text>
+            <Pressable onPress={handleForgotPassword} style={styles.forgotPressable}>
+              <Text style={[styles.forgotText, { color: '#0FA3B1' }]}>Forgot Password?</Text>
             </Pressable>
+
+            <AppButton
+              title="Sign In"
+              onPress={handleLogin}
+              loading={loading}
+              size="lg"
+            />
+
+            <View style={styles.registerContainer}>
+              <Text style={[styles.registerLabel, { color: colors.textSecondary }]}>Don't have an account? </Text>
+              <Pressable onPress={() => router.push("/auth/register")}>
+                <Text style={[styles.registerLink, { color: '#0FA3B1' }]}>Create Account</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -152,66 +149,43 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
     justifyContent: "center",
-    backgroundColor: "#F9FAFB",
   },
+  logoWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logoText: { fontSize: 30 },
   title: {
     fontSize: 32,
-    fontWeight: "800",
-    color: "#1F2937",
+    fontWeight: "900",
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: "#6B7280",
     marginBottom: 32,
   },
   errorContainer: {
-    backgroundColor: "#FEE2E2",
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 12,
     marginBottom: 16,
   },
   errorText: {
-    color: "#DC2626",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    backgroundColor: "#FFF",
-    padding: 15,
-    marginBottom: 15,
-    borderRadius: 12,
-    fontSize: 16,
-    color: "#1F2937",
-  },
-  forgotText: {
-    color: "#2563EB",
     fontSize: 14,
     fontWeight: "600",
-    textAlign: "right",
+  },
+  forgotPressable: {
+    alignSelf: "flex-end",
     marginBottom: 24,
+    paddingVertical: 4,
   },
-  button: {
-    backgroundColor: "#2563EB",
-    height: 56,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#2563EB",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: "#fff",
+  forgotText: {
+    fontSize: 14,
     fontWeight: "700",
-    fontSize: 16,
   },
   registerContainer: {
     flexDirection: "row",
@@ -219,12 +193,10 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   registerLabel: {
-    color: "#6B7280",
     fontSize: 14,
   },
   registerLink: {
-    color: "#2563EB",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

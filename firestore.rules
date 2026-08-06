@@ -2,12 +2,12 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User profiles — only the authenticated user can read/write their own document
+    // User profile and all subcollections (transactions, goals, etc.)
+    // Only the authenticated user can read and write their own data.
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      // User transactions subcollection — same rule: only the owning user
-      match /transactions/{transactionId} {
+      match /{allSubcollections=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }

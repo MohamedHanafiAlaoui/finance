@@ -20,7 +20,7 @@ interface AuthContextProps {
   register: (fullName: string, email: string, password: string) => Promise<AppUser>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  completeOnboarding: (savingsGoal: string, goalAmount: number, currentSavings: number) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -112,9 +112,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await resetPasswordService(email);
   };
 
-  const completeOnboarding = async (savingsGoal: string, goalAmount: number, currentSavings: number) => {
+  const completeOnboarding = async () => {
     if (!firebaseUser) throw new Error('Not authenticated');
-    await completeOnboardingService(firebaseUser.uid, savingsGoal, goalAmount, currentSavings);
+    await completeOnboardingService(firebaseUser.uid);
     // The onSnapshot listener will automatically update currentUser
   };
 

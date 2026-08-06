@@ -1,172 +1,245 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import BalanceCard from '../../components/home/BalanceCard';
-import SavingsCard from '../../components/home/SavingsCard';
-import TransactionItem from '../../components/home/TransactionItem';
+import React, { useState, useCallback } from 'react';
+import {
+  ScrollView, View, Text, StyleSheet,
+  Pressable, RefreshControl, StatusBar, Alert
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { subscribeTransactions } from '../../services/transactionService';
-import { Transaction } from '../../types/transaction';
-import { AddMoneyModal } from '../../components/AddMoneyModal';
-import { NewGoalModal } from '../../components/NewGoalModal';
+import { useGoals } from '../../context/GoalsContext';
+import { useTransactions } from '../../context/TransactionsContext';
+import { useTheme } from '../../hooks/use-theme';
+import { GoalCard } from '../../components/goals/GoalCard';
+import { GoalFormSheet } from '../../components/goals/GoalFormSheet';
+import { AddMoneySheet } from '../../components/goals/AddMoneySheet';
+import { TransactionFormSheet } from '../../components/transactions/TransactionFormSheet';
+import { TransactionItem } from '../../components/transactions/TransactionItem';
+import { StatCard } from '../../components/ui/StatCard';
+import { SectionHeader } from '../../components/ui/SectionHeader';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { Avatar } from '../../components/ui/Avatar';
+import type { GoalWithStats } from '../../types/goal';
+
+const formatCurrency = (n: number) =>
+  `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+const getGreeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+};
 
 export default function HomeScreen() {
-  const { currentUser, firebaseUser, logout } = useAuth();
-  const uid = firebaseUser?.uid;
+  const router = useRouter();
+  const { currentUser, logout } = useAuth();
+  const { activeGoals, completedGoals, deleteGoal, archiveGoal } = useGoals();
+  const { monthStats, recentTransactions, isLoading: txLoading } = useTransactions();
+  const colors = useTheme();
 
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [addMoneyVisible, setAddMoneyVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [newGoalVisible, setNewGoalVisible] = useState(false);
+  const [addMoneyGoal, setAddMoneyGoal] = useState<GoalWithStats | null>(null);
+  const [editGoal, setEditGoal] = useState<GoalWithStats | null>(null);
+  const [txFormVisible, setTxFormVisible] = useState(false);
 
-  useEffect(() => {
-    if (uid) {
-      const unsubTx = subscribeTransactions(uid, setTransactions);
-      return () => {
-        unsubTx();
-      };
-    }
-  }, [uid]);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 1000);
+  }, []);
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to log out.');
-    }
-  };
-
-  // Safe values from user profile
-  const safeSavings = Number(currentUser?.currentSavings ?? 0);
-  const safeGoal = Number(currentUser?.goalAmount ?? 0);
-
-  if (!uid) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const totalBalance = monthStats.income - monthStats.expenses - monthStats.savings;
+  const totalSaved = activeGoals.reduce((s, g) => s + g.currentAmount, 0) +
+    completedGoals.reduce((s, g) => s + g.currentAmount, 0);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={16}>
-        <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle="light-content" backgroundColor="#2E8B57" />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2E8B57" />}
+      >
+        {/* ── Hero Card ── */}
+        <View style={styles.hero}>
+          <View style={styles.heroTop}>
             <View>
               <Text style={styles.greeting}>{getGreeting()} 👋</Text>
-              <Text style={styles.name}>{currentUser?.fullName || 'User'}</Text>
+              <Text style={styles.heroName}>{currentUser?.fullName || 'User'}</Text>
             </View>
-            <Pressable style={styles.profileButton} onPress={handleLogout}>
-              <Text style={styles.profileText}>
-                {currentUser?.initials || currentUser?.fullName?.[0] || '?'}
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Balance Card */}
-          <BalanceCard
-            currentSavings={safeSavings}
-            goalAmount={safeGoal}
-          />
-
-          {/* Quick Actions */}
-          <View style={styles.quickActionsContainer}>
-            <Pressable style={styles.quickAction} onPress={() => setAddMoneyVisible(true)}>
-              <Text style={styles.quickActionIcon}>➕</Text>
-              <Text style={styles.quickActionText}>Add Money</Text>
-            </Pressable>
-            <Pressable style={styles.quickAction} onPress={() => setNewGoalVisible(true)}>
-              <Text style={styles.quickActionIcon}>🎯</Text>
-              <Text style={styles.quickActionText}>New Goal</Text>
-            </Pressable>
-            <Pressable style={styles.quickAction} onPress={handleLogout}>
-              <Text style={styles.quickActionIcon}>🚪</Text>
-              <Text style={styles.quickActionText}>Logout</Text>
-            </Pressable>
-          </View>
-
-          {/* Savings Goals Section */}
-          {currentUser?.savingsGoal ? (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Savings Goal</Text>
-              </View>
-              <SavingsCard
-                goalName={currentUser.savingsGoal}
-                currentAmount={safeSavings}
-                targetAmount={safeGoal}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+              <Pressable onPress={() => logout().catch(console.error)}>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}>Logout</Text>
+              </Pressable>
+              <Avatar
+                initials={currentUser?.initials || currentUser?.fullName?.[0] || '?'}
+                size={50}
+                color="rgba(255,255,255,0.3)"
               />
-            </>
-          ) : null}
-
-          {/* Recent Transactions */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Transactions</Text>
-            <Text style={styles.seeAll}>{transactions.length} total</Text>
+            </View>
           </View>
 
-          {transactions.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📭</Text>
-              <Text style={styles.emptyText}>No transactions yet</Text>
-              <Text style={styles.emptySubtext}>
-                Tap "Add Money" to record your first transaction
-              </Text>
+          {/* Balance */}
+          <View style={styles.balanceBlock}>
+            <Text style={styles.balanceLabel}>Available Balance</Text>
+            <Text style={styles.balanceAmount}>{formatCurrency(monthStats.balance)}</Text>
+            <Text style={styles.balanceSub}>
+              📈 {monthStats.savingsRate}% savings rate this month
+            </Text>
+          </View>
+
+          {/* Mini stats row */}
+          <View style={styles.miniStats}>
+            <View style={styles.miniStat}>
+              <Text style={styles.miniStatIcon}>↑</Text>
+              <Text style={styles.miniStatLabel}>Income</Text>
+              <Text style={styles.miniStatVal}>{formatCurrency(monthStats.income)}</Text>
             </View>
+            <View style={styles.miniDivider} />
+            <View style={styles.miniStat}>
+              <Text style={styles.miniStatIcon}>↓</Text>
+              <Text style={styles.miniStatLabel}>Expenses</Text>
+              <Text style={styles.miniStatVal}>{formatCurrency(monthStats.expenses)}</Text>
+            </View>
+            <View style={styles.miniDivider} />
+            <View style={styles.miniStat}>
+              <Text style={styles.miniStatIcon}>💎</Text>
+              <Text style={styles.miniStatLabel}>Saved</Text>
+              <Text style={styles.miniStatVal}>{formatCurrency(monthStats.savings)}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.content}>
+          {/* Stat cards row */}
+          <View style={styles.statsRow}>
+            <StatCard
+              label="Total Saved"
+              value={formatCurrency(totalSaved)}
+              icon="💰"
+              color="#2E8B57"
+              style={styles.statCardHalf}
+            />
+            <StatCard
+              label="Active Goals"
+              value={`${activeGoals.length}`}
+              icon="🎯"
+              color="#8E44AD"
+              style={styles.statCardHalf}
+            />
+            <StatCard
+              label="Completed"
+              value={`${completedGoals.length}`}
+              icon="✅"
+              color="#2980B9"
+              style={styles.statCardHalf}
+            />
+            <StatCard
+              label="This Month"
+              value={`${monthStats.savingsRate}%`}
+              icon="📊"
+              color="#E67E22"
+              style={styles.statCardHalf}
+            />
+          </View>
+
+
+
+          {/* Top Savings Goals */}
+          <SectionHeader
+            title="Savings Goals"
+            actionLabel={activeGoals.length > 3 ? `See all (${activeGoals.length})` : undefined}
+            onAction={() => router.push('/tabs/goals')}
+          />
+          {activeGoals.length === 0 ? (
+            <EmptyState
+              icon="🎯"
+              title="No goals yet"
+              subtitle="Create your first savings goal and start building wealth!"
+              actionLabel="Create Goal"
+              onAction={() => setNewGoalVisible(true)}
+            />
           ) : (
-            transactions.slice(0, 10).map((transaction) => (
-              <TransactionItem
-                key={transaction.id}
-                title={transaction.category}
-                date={transaction.date}
-                amount={`${transaction.type === 'income' ? '+' : '-'}$${Number(transaction.amount || 0).toFixed(2)}`}
-                type={transaction.type}
+            activeGoals.slice(0, 3).map((goal) => (
+              <GoalCard
+                key={goal.id}
+                goal={goal}
+                onAddMoney={(g) => setAddMoneyGoal(g)}
+                onEdit={(g) => setEditGoal(g)}
+                onDelete={(g) => deleteGoal(g.id)}
+                onPress={(g) => router.push(`/tabs/goal/${g.id}`)}
               />
             ))
           )}
+
+          {/* Recent Transactions */}
+          <SectionHeader
+            title="Recent Transactions"
+            actionLabel="See All"
+            onAction={() => router.push('/tabs/transactions')}
+          />
+          {recentTransactions.length === 0 ? (
+            <EmptyState
+              icon="📭"
+              title="No transactions yet"
+              subtitle="Add your first income, expense, or savings deposit"
+              actionLabel="Add Transaction"
+              onAction={() => setTxFormVisible(true)}
+            />
+          ) : (
+            recentTransactions.slice(0, 5).map((tx) => (
+              <TransactionItem key={tx.id} transaction={tx} />
+            ))
+          )}
+
+          <View style={{ height: 24 }} />
         </View>
       </ScrollView>
-      <AddMoneyModal
-        visible={addMoneyVisible}
-        onClose={() => setAddMoneyVisible(false)}
-        currentSavings={safeSavings}
+
+      {/* Modals */}
+      <GoalFormSheet visible={newGoalVisible} onClose={() => setNewGoalVisible(false)} />
+      <GoalFormSheet
+        visible={!!editGoal}
+        onClose={() => setEditGoal(null)}
+        editGoal={editGoal ?? undefined}
       />
-      <NewGoalModal
-        visible={newGoalVisible}
-        onClose={() => setNewGoalVisible(false)}
+      <AddMoneySheet
+        visible={!!addMoneyGoal}
+        onClose={() => setAddMoneyGoal(null)}
+        goal={addMoneyGoal}
       />
+      <TransactionFormSheet visible={txFormVisible} onClose={() => setTxFormVisible(false)} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  content: { padding: 20, paddingBottom: 30 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { fontSize: 16, color: '#6B7280' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
-  greeting: { fontSize: 16, color: '#6B7280', fontWeight: '500' },
-  name: { fontSize: 28, fontWeight: '800', color: '#1F2937', marginTop: 4 },
-  profileButton: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center', shadowColor: '#2563EB', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 4 },
-  profileText: { color: '#FFF', fontSize: 20, fontWeight: '700' },
-  quickActionsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 28, gap: 12 },
-  quickAction: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, padding: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },
-  quickActionIcon: { fontSize: 28, marginBottom: 6 },
-  quickActionText: { fontSize: 12, color: '#1F2937', fontWeight: '600', textAlign: 'center' },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  sectionTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
-  seeAll: { fontSize: 14, color: '#2563EB', fontWeight: '600' },
-  emptyContainer: { alignItems: 'center', paddingVertical: 32, backgroundColor: '#FFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 12 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyText: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
-  emptySubtext: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', paddingHorizontal: 24 },
+  safe: { flex: 1 },
+  hero: {
+    backgroundColor: '#2E8B57',
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  greeting: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '500' },
+  heroName: { color: '#fff', fontSize: 24, fontWeight: '800', marginTop: 2 },
+  balanceBlock: { marginBottom: 20 },
+  balanceLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
+  balanceAmount: { color: '#fff', fontSize: 40, fontWeight: '900', letterSpacing: -1 },
+  balanceSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4 },
+  miniStats: {
+    flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 18, padding: 14,
+  },
+  miniStat: { flex: 1, alignItems: 'center' },
+  miniStatIcon: { fontSize: 14, marginBottom: 2, color: '#fff' },
+  miniStatLabel: { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginBottom: 2 },
+  miniStatVal: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  miniDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 4 },
+  content: { padding: 20 },
+  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
+  statCardHalf: { width: '47%' },
+
 });

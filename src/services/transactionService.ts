@@ -1,87 +1,140 @@
+import {
+  collection,
+  addDoc,
+  doc,
+  updateDoc,
+  getDocs,
+  query,
+  where,
+  onSnapshot,
+  deleteDoc,
+  serverTimestamp,
+  orderBy,
+} from 'firebase/firestore';
 import { firestore } from '../../config/firebase';
-import { collection, addDoc, doc, getDocs, query, orderBy, onSnapshot, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import type { Transaction } from '../types/transaction';
 
-/**
- * Create a transaction in the user's subcollection: users/{uid}/transactions
- */
+const txCol = (uid: string) =>
+  collection(firestore, 'users', uid, 'transactions');
+
+const txDoc = (uid: string, txId: string) =>
+  doc(firestore, 'users', uid, 'transactions', txId);
+
+const parseTransaction = (id: string, data: any, uid: string): Transaction => ({
+  id,
+  userId: data.userId ?? uid,
+  type: data.type ?? 'expense',
+  amount: Number(data.amount ?? 0),
+  category: data.category ?? '',
+  note: data.note ?? data.description ?? '',
+  date: data.date ?? '',
+  goalId: data.goalId,
+  createdAt: data.createdAt,
+});
+
+/** Create a new transaction */
 export const createTransaction = async (
   uid: string,
   data: Omit<Transaction, 'id' | 'userId' | 'createdAt'>
-) => {
-  const txColRef = collection(firestore, 'users', uid, 'transactions');
-  const txRef = await addDoc(txColRef, {
+): Promise<string> => {
+  const ref = await addDoc(txCol(uid), {
     ...data,
     userId: uid,
     createdAt: serverTimestamp(),
   });
-  return txRef.id;
+  return ref.id;
 };
 
-/**
- * Get all transactions for a user (one-time fetch).
- * Sorted descending by date locally to avoid requiring a composite Firestore index.
- */
+/** Update an existing transaction */
+export const updateTransaction = async (
+  uid: string,
+  txId: string,
+  updates: Partial<Omit<Transaction, 'id' | 'userId' | 'createdAt'>>
+): Promise<void> => {
+  await updateDoc(txDoc(uid, txId), updates);
+};
+
+/** Delete a transaction */
+export const deleteTransaction = async (uid: string, txId: string): Promise<void> => {
+  await deleteDoc(txDoc(uid, txId));
+};
+
+/** One-time fetch of all transactions, sorted newest first */
 export const getUserTransactions = async (uid: string): Promise<Transaction[]> => {
-  const txColRef = collection(firestore, 'users', uid, 'transactions');
-  const q = query(txColRef);
-  const snap = await getDocs(q);
+  const snap = await getDocs(txCol(uid));
   const txs: Transaction[] = [];
-  snap.forEach((docSnap) => {
-    const data = docSnap.data();
-    txs.push({
-      id: docSnap.id,
-      userId: data.userId ?? uid,
-      type: data.type ?? 'expense',
-      amount: Number(data.amount ?? 0),
-      category: data.category ?? '',
-      description: data.description ?? '',
-      date: data.date ?? '',
-      createdAt: data.createdAt,
-    });
-  });
-  // Sort descending by date locally
+  snap.forEach((d) => txs.push(parseTransaction(d.id, d.data(), uid)));
   return txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
-/**
- * Subscribe to real-time transaction updates for a user.
- * Sorted descending by date locally.
- */
+/** Subscribe to all transactions in real-time */
 export const subscribeTransactions = (
   uid: string,
-  callback: (transactions: Transaction[]) => void,
-) => {
-  const txColRef = collection(firestore, 'users', uid, 'transactions');
-  const q = query(txColRef);
-  return onSnapshot(q, (snap) => {
-    const txs: Transaction[] = [];
-    snap.forEach((docSnap) => {
-      const data = docSnap.data();
-      txs.push({
-        id: docSnap.id,
-        userId: data.userId ?? uid,
-        type: data.type ?? 'expense',
-        amount: Number(data.amount ?? 0),
-        category: data.category ?? '',
-        description: data.description ?? '',
-        date: data.date ?? '',
-        createdAt: data.createdAt,
-      });
-    });
-    // Sort descending by date locally
-    txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    callback(txs);
-  }, (error) => {
-    console.error('[transactionService] Error subscribing to transactions:', error);
-    callback([]);
-  });
+  callback: (txs: Transaction[]) => void
+): (() => void) => {
+  return onSnapshot(
+    txCol(uid),
+    (snap) => {
+      const txs: Transaction[] = [];
+      snap.forEach((d) => txs.push(parseTransaction(d.id, d.data(), uid)));
+      txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      callback(txs);
+    },
+    (err) => {
+      console.error('[transactionService] Error:', err);
+      callback([]);
+    }
+  );
 };
 
-/**
- * Delete a transaction from the user's subcollection.
- */
-export const deleteTransaction = async (uid: string, txId: string) => {
-  const txRef = doc(firestore, 'users', uid, 'transactions', txId);
-  await deleteDoc(txRef);
+/** Subscribe to transactions for a specific month/year, client-side filtered */
+export const subscribeTransactionsByMonth = (
+  uid: string,
+  year: number,
+  month: number, // 0-based (January = 0)
+  callback: (txs: Transaction[]) => void
+): (() => void) => {
+  return onSnapshot(
+    txCol(uid),
+    (snap) => {
+      const txs: Transaction[] = [];
+      snap.forEach((d) => {
+        const tx = parseTransaction(d.id, d.data(), uid);
+        const txDate = new Date(tx.date);
+        if (txDate.getFullYear() === year && txDate.getMonth() === month) {
+          txs.push(tx);
+        }
+      });
+      txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      callback(txs);
+    },
+    (err) => {
+      console.error('[transactionService] Monthly filter error:', err);
+      callback([]);
+    }
+  );
+};
+
+/** Subscribe to transactions linked to a specific goal */
+export const subscribeTransactionsByGoal = (
+  uid: string,
+  goalId: string,
+  callback: (txs: Transaction[]) => void
+): (() => void) => {
+  return onSnapshot(
+    txCol(uid),
+    (snap) => {
+      const txs: Transaction[] = [];
+      snap.forEach((d) => {
+        const tx = parseTransaction(d.id, d.data(), uid);
+        if (tx.goalId === goalId) txs.push(tx);
+      });
+      txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      callback(txs);
+    },
+    (err) => {
+      console.error('[transactionService] Goal filter error:', err);
+      callback([]);
+    }
+  );
 };

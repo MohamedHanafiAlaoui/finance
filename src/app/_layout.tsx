@@ -1,15 +1,25 @@
 import { Stack, useRouter, useSegments } from "expo-router";
-import { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "../context/AuthContext";
+import { GoalsProvider } from "../context/GoalsContext";
+import { TransactionsProvider } from "../context/TransactionsContext";
+import { SplashView } from "../components/ui/SplashView";
 
 function NavigationGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, currentUser } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [splashActive, setSplashActive] = useState(true);
 
   useEffect(() => {
-    if (isLoading) return;
+    const timer = setTimeout(() => {
+      setSplashActive(false);
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (isLoading || splashActive) return;
 
     const inAuthGroup = segments[0] === "auth";
 
@@ -30,14 +40,10 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
         router.replace("/tabs/home");
       }
     }
-  }, [isAuthenticated, isLoading, currentUser, segments]);
+  }, [isAuthenticated, isLoading, currentUser, segments, splashActive]);
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F9FAFB" }}>
-        <ActivityIndicator size="large" color="#2563EB" />
-      </View>
-    );
+  if (isLoading || splashActive) {
+    return <SplashView />;
   }
 
   return <>{children}</>;
@@ -46,28 +52,32 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <NavigationGuard>
-        <Stack>
-          <Stack.Screen
-            name="index"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="auth"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="tabs"
-            options={{
-              headerShown: false,
-            }}
-          />
-        </Stack>
-      </NavigationGuard>
+      <GoalsProvider>
+        <TransactionsProvider>
+          <NavigationGuard>
+            <Stack>
+              <Stack.Screen
+                name="index"
+                options={{
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="auth"
+                options={{
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="tabs"
+                options={{
+                  headerShown: false,
+                }}
+              />
+            </Stack>
+          </NavigationGuard>
+        </TransactionsProvider>
+      </GoalsProvider>
     </AuthProvider>
   );
 }

@@ -34,7 +34,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ visible, onClose, 
         type: 'income',
         amount: parsed,
         category: 'Add Money',
-        description: 'Manual add money',
+        note: 'Manual add money',
         date: new Date().toISOString().split('T')[0],
       });
       // 2. Update user profile's currentSavings

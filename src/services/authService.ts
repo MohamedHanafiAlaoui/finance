@@ -216,17 +216,11 @@ export const resetPassword = async (email: string): Promise<void> => {
  * Mark onboarding as completed in Firestore and save financial data.
  */
 export const completeOnboarding = async (
-  uid: string,
-  savingsGoal: string,
-  goalAmount: number,
-  currentSavings: number
+  uid: string
 ): Promise<void> => {
   const userRef = doc(firestore, "users", uid);
   await updateDoc(userRef, {
     onboardingCompleted: true,
-    savingsGoal,
-    goalAmount,
-    currentSavings,
     updatedAt: serverTimestamp(),
   });
 };
