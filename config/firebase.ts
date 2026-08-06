@@ -8,12 +8,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ?? "AIzaSyBYCmInCYjc1Rbdx8q_9sDJEH22scWWg9I",
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "griffin-frank.firebaseapp.com",
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? "griffin-frank",
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "griffin-frank.firebasestorage.app",
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "632675699833",
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? "1:632675699833:web:a580dbc09c7fbe585698a8",
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ,
 };
 
 // Ensure app is initialized only once
